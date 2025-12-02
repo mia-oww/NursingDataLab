@@ -1,1 +1,2 @@
-# NursingDataLab
+# Interactive Georgia Nurse Practitioner Map
+An interactive geospatial dashboard that visualizes the distribution of Nurse Practitioners across Georgia. The map loads real provider data from a CSV, plots thousands of points using Leaflet and MarkerCluster, and displays detailed provider information on click. Counties are rendered from GeoJSON, allowing the map to highlight geographic patterns and density across regions. Built with Vite, Leaflet, PapaParse, and custom cluster styling for a smooth, data-rich exploration experience.
