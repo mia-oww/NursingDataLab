@@ -42,5 +42,4 @@ dist-ssr/
 
 # Local override configs
 *.local
-AI.DataLab.Nursing/
 AI.DataLab.Nursing.Tests/
