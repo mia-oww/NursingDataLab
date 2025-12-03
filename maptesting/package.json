@@ -12,6 +12,9 @@
     "vite": "^7.1.7"
   },
   "dependencies": {
+    "@turf/boolean-point-in-polygon": "^7.3.1",
+    "@turf/helpers": "^7.3.1",
+    "@turf/turf": "^7.3.1",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "papaparse": "^5.5.3"

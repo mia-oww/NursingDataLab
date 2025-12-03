@@ -4,6 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/leaflet.markercluster.js';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
+import * as turf from '@turf/turf';
+
+
 
 import Papa from 'papaparse';
 
@@ -14,6 +17,60 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
+
+
+fetch('/data/Georgia_Counties.geojson')
+  .then(res => res.json())
+  .then(gaCounties => {
+    console.log("Loaded county polygons:", gaCounties);
+
+    L.geoJSON(gaCounties, {
+      style: style,
+      onEachFeature: (feature, layer) => {
+        layer.bindPopup(
+          `${feature.properties.NAME}: ${countyData[feature.properties.NAME] ?? "No Value"}`
+        );
+      }
+    }).addTo(map);
+  })
+  .catch(err => {
+    console.error("County load failed:", err);
+  });
+
+const countyData = {
+  "Fulton": 50,
+  "DeKalb": 32,
+  "Gwinnett": 47,
+  "Cobb": 41,
+  // etc...
+};
+
+function getColor(val) {
+  return val > 45 ? "#800026" :
+         val > 35 ? "#BD0026" :
+         val > 25 ? "#E31A1C" :
+         val > 15 ? "#FC4E2A" :
+                    "#FD8D3C";
+}
+
+function style(feature) {
+  const name = feature.properties.NAME;
+  const val = countyData[name] || 0;
+
+  return {
+    fillColor: getColor(val),
+    weight: 1,
+    opacity: 1,
+    color: "white",
+    fillOpacity: 0.6
+  };
+}
+
+
+
+
+
+// marker cluster group 
 
 const markerCluster = L.markerClusterGroup({
   iconCreateFunction: function (cluster) {
@@ -65,6 +122,7 @@ function formatAddress(r) {
 function formatName(r) {
   return `${r.Provider_First_Name || ''} ${r.Provider_Last_Name || ''}`.trim() || "Unnamed Provider";
 }
+
 
 // ---------- main: load CSV + clustered markers ----------
 Papa.parse('public/data/providers_with_latlon3.csv', {
