@@ -1,7 +1,7 @@
 # Mapping Georgia's Nurse Practitioner Workforce
 Overview:
 
-This project creates an interactive, county-level choropleth map demonstrating the density and specialty distribution of Nurse Practitioners (NPs) across the state of Georgia. Developed for the Georgia Nursing Workforce Center at Emory University's Nell Hodgson Woodruff School of Nursing, this tool aims to provide clear data visualization to support workforce projections and research.
+This project creates an interactive, county-level choropleth map demonstrating the density and specialty distribution of Nurse Practitioners (NPs) across the state of Georgia. Developed for the **_Georgia Nursing Workforce Center at Emory University's Nell Hodgson Woodruff School of Nursing_**, this tool aims to provide clear data visualization to support workforce projections and research.
 
 
 The primary deliverable is a user-friendly, publicly available map that enables researchers and policymakers to visually identify areas of high or low NP saturation across the state, broken down by specialty. The map serves as a vital tool for understanding NP resource allocation and identifying potential geographical gaps in the nursing workforce.
