@@ -43,3 +43,7 @@ dist-ssr/
 # Local override configs
 *.local
 AI.DataLab.Nursing.Tests/
+/node_modules
+/dist
+/build
+.temp
