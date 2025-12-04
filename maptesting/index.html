@@ -7,14 +7,27 @@
 
     
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    
+
     <style>
       html, body, #map { height: 100%; margin: 0; }
-      /* Add this block to your existing <style> block in index.html */
+
+        .map-overlay {
+    position: fixed;
+    bottom: 10px; 
+    left: 10px;
+    padding: 8px 12px;
+    background-color: #f7f7f7; /* Light gray background */
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    font-size: 13px;
+    color: #333;
+    z-index: 999; 
+}
 .info {
     padding: 6px 8px;
     background: white;
-    background: rgba(255, 255, 255, 0.9); /* Opaque background */
+    background: rgba(255, 255, 255, 0.9); 
     box-shadow: 0 0 15px rgba(0,0,0,0.2);
     border-radius: 5px;
     line-height: 20px;
@@ -48,6 +61,8 @@
   </head>
   <body>
     <div id="map"></div>
+
+    <div id="loadingMessage" class="map-overlay">Loading data, please wait...</div>
 
     <div class="sidebar">
     <h3>Filter</h3>
