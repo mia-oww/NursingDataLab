@@ -32,18 +32,21 @@
   <body>
     <div id="map"></div>
 
-    <!-- Right sidebar -->
     <div class="sidebar">
-      <h3>Filter</h3>
-      <label for="countySelect">County</label>
-      <select id="countySelect">
-        <option value="__ALL__">All counties</option>
-      </select>
-      <div id="counts" class="pill">Showing 0 / 0</div>
-      <button id="resetBtn" style="margin-top:10px">Reset view</button>
-    </div>
-
+    <h3>Filter</h3>
     
+    <label for="countySelect">County</label>
+    <select id="countySelect">
+        <option value="__ALL__">All counties</option>
+    </select>
+
+    <label for="npTypeSelect">NP Type</label>
+    <select id="npTypeSelect">
+        <option value="__ALL__">All NP Types</option>
+    </select>
+    <div id="counts" class="pill">Showing 0 / 0</div>
+    <button id="resetBtn" style="margin-top:10px">Reset view</button>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

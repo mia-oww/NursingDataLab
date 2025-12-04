@@ -6,6 +6,11 @@ import Papa from 'papaparse';
 // --- global  ---
 let map; 
 let providerCountByFIPS = {}; 
+let geoJsonLayer; // Added for drawChoropleth/filtering
+let fullGeoJsonData; // Added for filtering
+let allProviderData = []; // Added to store raw CSV data for filtering
+let nameToFipsMap = {}; // Moved to global scope for filtering access
+
 
 // ==========================================================
 // 1. helper (not used)
@@ -41,24 +46,34 @@ function getDensityColor(x) {
 
 function loadAllDataAndDrawLayers() {
     
-    // --- load GeoJSON and create a name to FIPS lookup map ---
-    
     const gaCountiesPromise = fetch('/data/Georgia_Counties.geojson')
         .then(r => r.json());
 
     gaCountiesPromise.then(async gaCounties => {
         
-        const nameToFipsMap = {};
+        fullGeoJsonData = gaCounties; // Store globally
+        const countySelect = document.getElementById('countySelect');
         
         gaCounties.features.forEach(f => {
-            const countyName = f.properties.NAME10.trim().toUpperCase(); 
+            const countyName = f.properties.NAME10; // Use raw name for display
             const countyFips = String(f.properties.COUNTYFP10); 
             
-            nameToFipsMap[countyName] = '13' + countyFips;
+            const cleanedName = countyName.replace(/[^a-zA-Z\s]/g, '').trim().toUpperCase();
+            nameToFipsMap[cleanedName] = '13' + countyFips;
+
+            // Populate the County dropdown
+            const option = document.createElement('option');
+            option.value = countyFips;
+            option.textContent = countyName;
+            countySelect.appendChild(option);
         });
 
         console.log(`Created Name-to-FIPS map with ${Object.keys(nameToFipsMap).length} entries.`);
         
+        // Add event listeners for the filters
+        document.getElementById('countySelect').addEventListener('change', runCombinedFilter);
+        document.getElementById('resetBtn').addEventListener('click', resetFilters);
+
         
         Papa.parse('final_cleaned_.csv', {
             download: true,
@@ -67,52 +82,75 @@ function loadAllDataAndDrawLayers() {
             complete: ({ data }) => {
                 console.log("🔥 Papa.parse COMPLETE fired for all data.");
                 
-                providerCountByFIPS = {};
+                allProviderData = data; // Store all data for type filtering
 
-                for (const r of data) {
-                    const rawCountyName = r.COUNTYFP10;
-                    
-                    if (rawCountyName) {
-                      console.log(`Processing county name from CSV: "${rawCountyName}"`);
-
-                      const cleanedCSVName = String(rawCountyName)
-                        .replace(/[^a-zA-Z\s]/g, '') 
-                        .trim()
-                        .toUpperCase(); // Normalize case
-                        
-                        const normalizedCountyName = rawCountyName.trim().toUpperCase();
-                        
-                        
-                        const fipsKey = nameToFipsMap[normalizedCountyName]; 
-
-                        if (fipsKey && fipsKey.length === 5) { 
-                            providerCountByFIPS[fipsKey] = (providerCountByFIPS[fipsKey] || 0) + 1;
-                        }
+                const uniqueNpTypes = new Set();
+                const npTypeSelect = document.getElementById('npTypeSelect');
+                
+                const providersMatched = initialCountAndTypePopulation(uniqueNpTypes);
+                
+                // Populate NP Type dropdown
+                uniqueNpTypes.forEach(type => {
+                    if (type && type !== '') {
+                        const option = document.createElement('option');
+                        option.value = type;
+                        option.textContent = type;
+                        npTypeSelect.appendChild(option);
                     }
-                }
+                });
+                
+                document.getElementById('npTypeSelect').addEventListener('change', runCombinedFilter);
 
                 console.log("Total rows processed:", data.length);
                 console.log("FIPS keys counted:", Object.keys(providerCountByFIPS).length);
                 console.log("Sample FIPS keys generated from CSV:", Object.keys(providerCountByFIPS).slice(0, 5)); 
                 
-               
-                drawChoropleth(gaCounties);
+                updateCountPill(providersMatched);
+                drawChoropleth(fullGeoJsonData);
             }
         });
     });
 }
 
+function initialCountAndTypePopulation(uniqueNpTypes) {
+    providerCountByFIPS = {};
+    let providersMatched = 0;
 
-function drawChoropleth(gaCounties) {
-    L.geoJSON(gaCounties, {
+    for (const r of allProviderData) {
+        if (r.NP_Type_Final) {
+            uniqueNpTypes.add(r.NP_Type_Final);
+        }
+
+        const rawCountyName = r.COUNTYFP10;
+        
+        if (rawCountyName) {
+            const normalizedCountyName = String(rawCountyName)
+                .replace(/[^a-zA-Z\s]/g, '') 
+                .trim()
+                .toUpperCase();
+            
+            const fipsKey = nameToFipsMap[normalizedCountyName]; 
+
+            if (fipsKey && fipsKey.length === 5) { 
+                providerCountByFIPS[fipsKey] = (providerCountByFIPS[fipsKey] || 0) + 1;
+                providersMatched++;
+            }
+        }
+    }
+    return providersMatched;
+}
+
+function drawChoropleth(data) {
+    if (geoJsonLayer) {
+        map.removeLayer(geoJsonLayer);
+    }
+    
+    geoJsonLayer = L.geoJSON(data, {
         style: f => {
             
             const countyFips = String(f.properties.COUNTYFP10); 
-            
-            
             const fipsKey = '13' + countyFips;
             
-           
             const count = providerCountByFIPS[fipsKey] || 0; 
             
             return {
@@ -132,17 +170,123 @@ function drawChoropleth(gaCounties) {
         }
     }).addTo(map);
 
+    if (data === fullGeoJsonData) {
+        map.fitBounds(geoJsonLayer.getBounds());
+    }
     
+    if (!document.querySelector('.info.legend')) {
+        addLegend();
+    }
+}
+
+function runCombinedFilter() {
+    // Force the dropdown value to be a string
+    const selectedFIPS = String(document.getElementById('countySelect').value);
+    const selectedNPType = document.getElementById('npTypeSelect').value;
+    
+    let filteredProviders = allProviderData;
+    
+    // 1. Filter Providers by NP Type
+    if (selectedNPType !== '__ALL__') {
+        filteredProviders = filteredProviders.filter(r => r.NP_Type_Final === selectedNPType);
+    }
+
+    // 2. Recount Providers per FIPS code based on the filtered data
+    const { newCountByFIPS, totalFilteredCount } = countFilteredProviders(filteredProviders);
+    
+    // 3. Update the global count object
+    providerCountByFIPS = newCountByFIPS;
+    
+    // 4. Filter GeoJSON by County (CRITICAL FIX HERE)
+    const filteredFeatures = selectedFIPS === '__ALL__' 
+        ? fullGeoJsonData.features
+        // Force String conversion on the GeoJSON property for strict matching
+        : fullGeoJsonData.features.filter(f => String(f.properties.COUNTYFP10) === selectedFIPS);
+
+    const filteredGeoJSON = {
+        type: 'FeatureCollection',
+        features: filteredFeatures
+    };
+    
+    // 5. Redraw the map
+    drawChoropleth(filteredGeoJSON);
+
+    // 6. Update Map View and Pill 
+    if (geoJsonLayer) { 
+        if (selectedFIPS !== '__ALL__' && filteredFeatures.length > 0) {
+            
+            // Zoom to the bounds of the single feature
+            try {
+                map.fitBounds(geoJsonLayer.getBounds());
+            } catch (e) {
+                // If bounds calculation fails, reset view.
+                map.setView([32.9, -83.3], 7);
+                console.error("Failed to fit bounds for selected county:", e);
+            }
+            
+            const countInSelectedCounty = newCountByFIPS['13' + selectedFIPS] || 0;
+            updateCountPill(countInSelectedCounty);
+        } else {
+            // Zoom to the full extent of the current layer (or total data if __ALL__)
+            map.fitBounds(geoJsonLayer.getBounds());
+            updateCountPill(totalFilteredCount);
+        }
+    } else {
+        updateCountPill(0);
+    }
+}
+
+function countFilteredProviders(providers) {
+    const newCountByFIPS = {};
+    let totalFilteredCount = 0;
+    
+    for (const r of providers) {
+        const rawCountyName = r.COUNTYFP10; 
+        
+        if (rawCountyName) {
+            const normalizedCountyName = String(rawCountyName).replace(/[^a-zA-Z\s]/g, '').trim().toUpperCase();
+            const fipsKey = nameToFipsMap[normalizedCountyName]; 
+
+            if (fipsKey && fipsKey.length === 5) { 
+                newCountByFIPS[fipsKey] = (newCountByFIPS[fipsKey] || 0) + 1;
+                totalFilteredCount++;
+            }
+        }
+    }
+    return { newCountByFIPS, totalFilteredCount };
+}
+
+function resetFilters() {
+    document.getElementById('countySelect').value = '__ALL__';
+    document.getElementById('npTypeSelect').value = '__ALL__';
+    runCombinedFilter();
+}
+
+
+function updateCountPill(shownCount) {
+    const totalCount = Object.values(allProviderData).length;
+    document.getElementById('counts').innerHTML = `Showing ${shownCount.toLocaleString()} / ${totalCount.toLocaleString()}`;
+}
+
+
+function addLegend() {
     const legend = L.control({ position: "bottomright" });
     legend.onAdd = function () {
         const div = L.DomUtil.create("div", "info legend");
         const grades = [0, 10, 50, 200, 500, 1000];
-        div.innerHTML += "<b>Provider Density</b><br>";
+        
+        div.innerHTML = "<b>Provider Density</b><br>";
+        
         for (let i = 0; i < grades.length; i++) {
+            const color = getDensityColor(grades[i] + 1);
+            const labelText = grades[i + 1] 
+                ? `${grades[i]} &ndash; ${grades[i + 1]}` 
+                : `${grades[i]} +`;
+
             div.innerHTML +=
-            `<i style="background:${getDensityColor(grades[i] + 1)}"></i> ` +
-            grades[i] +
-            (grades[i + 1] ? `–${grades[i + 1]}<br>` : "+");
+                '<i style="background:' + color + '"></i> ' + 
+                labelText + 
+                '<br>'; 
         }
         return div;
     };
