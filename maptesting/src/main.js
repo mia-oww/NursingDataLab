@@ -267,7 +267,7 @@ function addLegend() {
         const div = L.DomUtil.create("div", "info legend");
         const grades = [0, 10, 50, 200, 500, 1000];
         
-        div.innerHTML = "<b>Provider Density</b><br>";
+        div.innerHTML = "<b>Nurse Practicioner Density</b><br>";
         
         for (let i = 0; i < grades.length; i++) {
             
