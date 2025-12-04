@@ -45,7 +45,11 @@ Correlation Analysis: Explore relationships between provider density (or NP-to-p
 NP-to-Physician Ratio: Calculate and map the NP-to-physician ratio for core specialties (family practice, emergency medicine, etc.).
 
 
+Specialty Concordance: Analyze the degree of specialty concordance between Georgia NPs and their supervising physicians, potentially involving web scraping to obtain physician specialties.
+
+
 **Tech Stack:**
+
 Vite
 
 Leaflet
@@ -57,5 +61,6 @@ Papa Parse (for CSV data handling)
 JavaScript/HTML/CSS
 
 
+## Acknowledgments
 
-Specialty Concordance: Analyze the degree of specialty concordance between Georgia NPs and their supervising physicians, potentially involving web scraping to obtain physician specialties.
+Special thanks to the team for their **rigorous data cleaning and standardization** work, which forms the basis for this accurate geospatial analysis! 
