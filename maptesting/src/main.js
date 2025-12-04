@@ -277,12 +277,16 @@ function addLegend() {
         
         div.innerHTML = "<b>Provider Density</b><br>";
         
+        // Loop through density intervals and generate a label with a color key
         for (let i = 0; i < grades.length; i++) {
+            
             const color = getDensityColor(grades[i] + 1);
+            
             const labelText = grades[i + 1] 
                 ? `${grades[i]} &ndash; ${grades[i + 1]}` 
                 : `${grades[i]} +`;
 
+            // The 'i' element gets the background color from our function
             div.innerHTML +=
                 '<i style="background:' + color + '"></i> ' + 
                 labelText + 
