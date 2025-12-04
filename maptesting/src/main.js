@@ -46,7 +46,7 @@ function getDensityColor(x) {
 
 function loadAllDataAndDrawLayers() {
     
-    const gaCountiesPromise = fetch('public/data/Georgia_Counties.geojson')
+    const gaCountiesPromise = fetch('/public/data/Georgia_Counties.geojson')
         .then(r => r.json());
 
     gaCountiesPromise.then(async gaCounties => {
@@ -75,7 +75,7 @@ function loadAllDataAndDrawLayers() {
         document.getElementById('resetBtn').addEventListener('click', resetFilters);
 
         
-        Papa.parse('public/data/final_cleaned_.csv', {
+        Papa.parse('/public/data/final_cleaned_.csv', {
             download: true,
             header: true,
             dynamicTyping: false, 
