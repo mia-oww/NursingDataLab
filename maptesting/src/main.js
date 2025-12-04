@@ -46,7 +46,7 @@ function getDensityColor(x) {
 
 function loadAllDataAndDrawLayers() {
     
-    const gaCountiesPromise = fetch('/public/data/Georgia_Counties.geojson')
+    const gaCountiesPromise = fetch('/data/Georgia_Counties.geojson')
         .then(r => r.json());
 
     gaCountiesPromise.then(async gaCounties => {
@@ -75,7 +75,7 @@ function loadAllDataAndDrawLayers() {
         document.getElementById('resetBtn').addEventListener('click', resetFilters);
 
         
-        Papa.parse('/public/data/final_cleaned_.csv', {
+        Papa.parse('/data/final_cleaned_.csv', {
             download: true,
             header: true,
             dynamicTyping: false, 
@@ -191,16 +191,13 @@ function runCombinedFilter() {
         filteredProviders = filteredProviders.filter(r => r.NP_Type_Final === selectedNPType);
     }
 
-    // 2. Recount Providers per FIPS code based on the filtered data
     const { newCountByFIPS, totalFilteredCount } = countFilteredProviders(filteredProviders);
     
-    // 3. Update the global count object
     providerCountByFIPS = newCountByFIPS;
     
-    // 4. Filter GeoJSON by County (CRITICAL FIX HERE)
     const filteredFeatures = selectedFIPS === '__ALL__' 
         ? fullGeoJsonData.features
-        // Force String conversion on the GeoJSON property for strict matching
+        // force String conversion on the GeoJSON property for strict matching
         : fullGeoJsonData.features.filter(f => String(f.properties.COUNTYFP10) === selectedFIPS);
 
     const filteredGeoJSON = {
@@ -208,27 +205,23 @@ function runCombinedFilter() {
         features: filteredFeatures
     };
     
-    // 5. Redraw the map
     drawChoropleth(filteredGeoJSON);
 
-    // 6. Update Map View and Pill 
-    if (geoJsonLayer) { 
-        if (selectedFIPS !== '__ALL__' && filteredFeatures.length > 0) {
-            
+    if (geoJsonLayer && filteredFeatures.length > 0) { 
             // Zoom to the bounds of the single feature
             try {
                 map.fitBounds(geoJsonLayer.getBounds());
             } catch (e) {
                 // If bounds calculation fails, reset view.
                 map.setView([32.9, -83.3], 7);
-                console.error("Failed to fit bounds for selected county:", e);
+                console.warn("Failed to fit bounds, reset to default view.");
             }
             
-            const countInSelectedCounty = newCountByFIPS['13' + selectedFIPS] || 0;
-            updateCountPill(countInSelectedCounty);
+            if (selectedFIPS !== '__ALL__') {
+              const countInSelectedCounty = newCountByFIPS['13' + selectedFIPS] || 0;
+              updateCountPill(countInSelectedCounty);
         } else {
             // Zoom to the full extent of the current layer (or total data if __ALL__)
-            map.fitBounds(geoJsonLayer.getBounds());
             updateCountPill(totalFilteredCount);
         }
     } else {
