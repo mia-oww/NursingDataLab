@@ -1,172 +1,150 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-
-import 'leaflet.markercluster/dist/leaflet.markercluster.js';
-import 'leaflet.markercluster/dist/MarkerCluster.css';
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import * as turf from '@turf/turf';
-
-
-
 import Papa from 'papaparse';
 
 
-// create map
-const map = L.map('map').setView([32.9, -83.3], 7);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+// --- global  ---
+let map; 
+let providerCountByFIPS = {}; 
+
+// ==========================================================
+// 1. helper (not used)
+// ==========================================================
+function padFips(fips) {
+    if (fips === null || fips === undefined) return '';
+    return String(fips).padStart(3, '0');
+}
 
 
-fetch('/data/Georgia_Counties.geojson')
-  .then(res => res.json())
-  .then(gaCounties => {
-    console.log("Loaded county polygons:", gaCounties);
+document.addEventListener('DOMContentLoaded', () => {
 
-    L.geoJSON(gaCounties, {
-      style: style,
-      onEachFeature: (feature, layer) => {
-        layer.bindPopup(
-          `${feature.properties.NAME}: ${countyData[feature.properties.NAME] ?? "No Value"}`
-        );
-      }
+    map = L.map('map').setView([32.9, -83.3], 7); 
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
-  })
-  .catch(err => {
-    console.error("County load failed:", err);
-  });
 
-const countyData = {
-  "Fulton": 50,
-  "DeKalb": 32,
-  "Gwinnett": 47,
-  "Cobb": 41,
-  // etc...
-};
+    loadAllDataAndDrawLayers();
+});
 
-function getColor(val) {
-  return val > 45 ? "#800026" :
-         val > 35 ? "#BD0026" :
-         val > 25 ? "#E31A1C" :
-         val > 15 ? "#FC4E2A" :
-                    "#FD8D3C";
-}
 
-function style(feature) {
-  const name = feature.properties.NAME;
-  const val = countyData[name] || 0;
 
-  return {
-    fillColor: getColor(val),
-    weight: 1,
-    opacity: 1,
-    color: "white",
-    fillOpacity: 0.6
-  };
+function getDensityColor(x) {
+    return x > 1000 ? "#1a9850" :
+           x > 500  ? "#66bd63" :
+           x > 200  ? "#d9ef8b" :
+           x > 50   ? "#fee08b" :
+           x > 10   ? "#f46d43" :
+                       "#d73027";
 }
 
 
+function loadAllDataAndDrawLayers() {
+    
+    // --- load GeoJSON and create a name to FIPS lookup map ---
+    
+    const gaCountiesPromise = fetch('/data/Georgia_Counties.geojson')
+        .then(r => r.json());
 
+    gaCountiesPromise.then(async gaCounties => {
+        
+        const nameToFipsMap = {};
+        
+        gaCounties.features.forEach(f => {
+            const countyName = f.properties.NAME10.trim().toUpperCase(); 
+            const countyFips = String(f.properties.COUNTYFP10); 
+            
+            nameToFipsMap[countyName] = '13' + countyFips;
+        });
 
+        console.log(`Created Name-to-FIPS map with ${Object.keys(nameToFipsMap).length} entries.`);
+        
+        
+        Papa.parse('final_cleaned_.csv', {
+            download: true,
+            header: true,
+            dynamicTyping: false, 
+            complete: ({ data }) => {
+                console.log("🔥 Papa.parse COMPLETE fired for all data.");
+                
+                providerCountByFIPS = {};
 
-// marker cluster group 
+                for (const r of data) {
+                    const rawCountyName = r.COUNTYFP10;
+                    
+                    if (rawCountyName) {
+                      console.log(`Processing county name from CSV: "${rawCountyName}"`);
 
-const markerCluster = L.markerClusterGroup({
-  iconCreateFunction: function (cluster) {
-    const count = cluster.getChildCount();
+                      const cleanedCSVName = String(rawCountyName)
+                        .replace(/[^a-zA-Z\s]/g, '') 
+                        .trim()
+                        .toUpperCase(); // Normalize case
+                        
+                        const normalizedCountyName = rawCountyName.trim().toUpperCase();
+                        
+                        
+                        const fipsKey = nameToFipsMap[normalizedCountyName]; 
 
-    let color;
-    if (count < 10) {
-      color = '#F44336';  // green = low count
-    } else if (count < 30) {
-      color = '#FFEB3B';  // yellow = medium count
-    } else {
-      color = '#4CAF50';  // red = large groups
-    }
+                        if (fipsKey && fipsKey.length === 5) { 
+                            providerCountByFIPS[fipsKey] = (providerCountByFIPS[fipsKey] || 0) + 1;
+                        }
+                    }
+                }
 
-    return L.divIcon({
-      html: `<div style="
-        background: ${color};
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #000;
-        font-weight: bold;
-        border: 2px solid #fff;
-      ">${count}</div>`,
-      className: 'custom-cluster',
-      iconSize: [40, 40]
+                console.log("Total rows processed:", data.length);
+                console.log("FIPS keys counted:", Object.keys(providerCountByFIPS).length);
+                console.log("Sample FIPS keys generated from CSV:", Object.keys(providerCountByFIPS).slice(0, 5)); 
+                
+               
+                drawChoropleth(gaCounties);
+            }
+        });
     });
-  }
-});
-
-
-// ---------- helpers ----------
-function getLat(r) {
-  return r.lat ?? r.Lat ?? r.latitude ?? r.Latitude;
-}
-function getLon(r) {
-  return r.lon ?? r.Lon ?? r.lng ?? r.Lng ?? r.longitude ?? r.Longitude;
-}
-
-// format address
-function formatAddress(r) {
-  return r.address_usps_standardized || r.address || "No address";
-}
-
-// format NP name
-function formatName(r) {
-  return `${r.Provider_First_Name || ''} ${r.Provider_Last_Name || ''}`.trim() || "Unnamed Provider";
 }
 
 
-// ---------- main: load CSV + clustered markers ----------
-Papa.parse('public/data/providers_with_latlon3.csv', {
-  download: true,
-  header: true,
-  dynamicTyping: true,
-  complete: ({ data }) => {
+function drawChoropleth(gaCounties) {
+    L.geoJSON(gaCounties, {
+        style: f => {
+            
+            const countyFips = String(f.properties.COUNTYFP10); 
+            
+            
+            const fipsKey = '13' + countyFips;
+            
+           
+            const count = providerCountByFIPS[fipsKey] || 0; 
+            
+            return {
+                fillColor: getDensityColor(count),
+                color: "white",
+                weight: 1,
+                fillOpacity: 0.65
+            };
+        },
+        onEachFeature: (feature, layer) => {
+            const countyFips = String(feature.properties.COUNTYFP10); 
+            const fipsKey = '13' + countyFips;
+            const count = providerCountByFIPS[fipsKey] || 0;
+            
+            const countyName = feature.properties.NAME10; 
+            layer.bindPopup(`<b>${countyName} County</b><br>Providers: ${count}`);
+        }
+    }).addTo(map);
 
-    console.log("🔥 Papa.parse COMPLETE fired");
-    console.log("CSV rows:", data.length);
-    console.log("First row:", data[0]);
-
-    let good = 0;
-    for (const r of data) {
-      const lat = Number(r.lat);
-      const lon = Number(r.lon);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        good++;
-      }
-    }
-    console.log("Valid lat/lon rows:", good);
-
-    // ---------------- marker creation ----------------
-    for (const r of data) {
-      const lat = Number(r.lat);
-      const lon = Number(r.lon);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
-      const marker = L.marker([lat, lon]);
-      marker.bindPopup(`
-  <div style="min-width: 200px;">
-    <b>${r.Provider_First_Name} ${r.Provider_Last_Name}</b><br/>
-    NPI: ${r.NPI}<br/>
-    Address: ${r.address_usps_standardized || r.address}<br/>
-  </div>
-`);
-
-      markerCluster.addLayer(marker);
-    }
-
-    console.log("Markers in cluster:", markerCluster.getLayers().length);
-
-    map.addLayer(markerCluster);
-  }
-});
-
+    
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = function () {
+        const div = L.DomUtil.create("div", "info legend");
+        const grades = [0, 10, 50, 200, 500, 1000];
+        div.innerHTML += "<b>Provider Density</b><br>";
+        for (let i = 0; i < grades.length; i++) {
+            div.innerHTML +=
+            `<i style="background:${getDensityColor(grades[i] + 1)}"></i> ` +
+            grades[i] +
+            (grades[i + 1] ? `–${grades[i + 1]}<br>` : "+");
+        }
+        return div;
+    };
+    legend.addTo(map);
+}
