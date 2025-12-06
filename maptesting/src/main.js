@@ -28,7 +28,30 @@ document.addEventListener('DOMContentLoaded', () => {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
+
     loadAllDataAndDrawLayers();
+
+    // -------------------------------------------
+    // ⭐ SIDEBAR TOGGLE LOGIC HERE ⭐
+    // -------------------------------------------
+    const sidebar = document.querySelector(".sidebar");
+    const toggleBtn = document.getElementById("toggleSidebar");
+
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            sidebar.classList.toggle("collapsed");
+
+            toggleBtn.textContent = sidebar.classList.contains("collapsed")
+                ? "Sort By ▸"
+                : "▾";
+        });
+
+        // Mobile: start collapsed
+        if (window.innerWidth <= 768) {
+            sidebar.classList.add("collapsed");
+        }
+    }
+    // -------------------------------------------
 });
 
 

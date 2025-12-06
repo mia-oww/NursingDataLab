@@ -57,6 +57,43 @@
       .pill { display:inline-block; background:#f5f5f5; padding:2px 6px; border-radius:999px; margin-top:6px; }
       /* keep map click-through when interacting with sidebar */
       .leaflet-container { outline: none; }
+
+      /* Toggle button (mobile only) */
+.toggle-sidebar {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+
+  font-size: 14px;
+  z-index: 2000;
+  cursor: pointer;
+
+  display: none; /* hidden on desktop */
+}
+
+/* When sidebar is collapsed */
+.sidebar.collapsed {
+  display: none;
+}
+
+/* Show toggle button only on mobile */
+@media (max-width: 768px) {
+  .toggle-sidebar {
+    display: block;
+  }
+  
+  .sidebar {
+    width: 85%;
+    max-width: 320px;
+  }
+}
+
     </style>
   </head>
   <body>
@@ -64,6 +101,7 @@
 
     <div id="loadingMessage" class="map-overlay">Loading data, please wait...</div>
 
+    <button id="toggleSidebar" class="toggle-sidebar">▾</button>
     <div class="sidebar">
     <h3>Sort By</h3>
     
