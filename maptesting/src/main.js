@@ -31,9 +31,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadAllDataAndDrawLayers();
 
-    // -------------------------------------------
-    // ⭐ SIDEBAR TOGGLE LOGIC HERE ⭐
-    // -------------------------------------------
     const sidebar = document.querySelector(".sidebar");
     const toggleBtn = document.getElementById("toggleSidebar");
 
@@ -46,12 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 : "▾";
         });
 
-        // Mobile: start collapsed
         if (window.innerWidth <= 768) {
             sidebar.classList.add("collapsed");
         }
     }
-    // -------------------------------------------
 });
 
 
@@ -129,13 +124,12 @@ function loadAllDataAndDrawLayers() {
         });
 
         const physicianNpDataPromise = new Promise(resolve => {
-            Papa.parse('/data/total_physician_np_count_ratio.csv', { // *** ASSUMING THIS IS THE FILE PATH ***
+            Papa.parse('/data/total_physician_np_count_ratio.csv', { 
                 download: true,
                 header: true,
                 dynamicTyping: true, 
                 complete: ({ data }) => {
                     data.forEach(row => {
-                      // Note: COUNTYFP10 in the CSV seems to be the name, let's use nameToFipsMap
                       const normalizedName = String(row.COUNTYFP10)
                         .replace(/[^a-zA-Z\s]/g, '')
                         .trim()
