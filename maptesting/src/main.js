@@ -10,8 +10,10 @@ let geoJsonLayer; // Added for drawChoropleth/filtering
 let fullGeoJsonData; // Added for filtering
 let allProviderData = []; // Added to store raw CSV data for filtering
 let nameToFipsMap = {}; // Moved to global scope for filtering access
-
-
+// family phys data
+let countyPsychDataByFIPS = {}; 
+// phys data
+let countyPhysicianNPDataByFIPS = {};
 
 function padFips(fips) {
     if (fips === null || fips === undefined) return '';
@@ -26,7 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
-
     loadAllDataAndDrawLayers();
 });
 
@@ -43,7 +44,11 @@ function getDensityColor(x) {
 
 
 function loadAllDataAndDrawLayers() {
-    
+    const physicianSelect = document.getElementById('physicianSelect'); 
+    if(physicianSelect){
+      physicianSelect.addEventListener("change", runCombinedFilter);
+    }
+
     const gaCountiesPromise = fetch('/data/Georgia_Counties.geojson')
         .then(r => r.json());
 
@@ -70,46 +75,113 @@ function loadAllDataAndDrawLayers() {
         document.getElementById('countySelect').addEventListener('change', runCombinedFilter);
         document.getElementById('resetBtn').addEventListener('click', resetFilters);
 
-        
-        Papa.parse('/data/final_cleaned_.csv', {
-            download: true,
-            header: true,
-            dynamicTyping: false, 
-            complete: ({ data }) => {
-                console.log("Papa.parse COMPLETE fired for all data.");
-                
-                allProviderData = data; 
 
-                const uniqueNpTypes = new Set();
-                const npTypeSelect = document.getElementById('npTypeSelect');
-                
-                const providersMatched = initialCountAndTypePopulation(uniqueNpTypes);
-                
-                uniqueNpTypes.forEach(type => {
-                    if (type && type !== '') {
-                        const option = document.createElement('option');
-                        option.value = type;
-                        option.textContent = type;
-                        npTypeSelect.appendChild(option);
+        const psychDataPromise = new Promise(resolve => {
+            Papa.parse('/data/family_physician_count_rate.csv', {
+                download: true,
+                header: true,
+                dynamicTyping: true, 
+                complete: ({ data }) => {
+                    data.forEach(row => {
+                      const normalizedName = String(row.COUNTYFP10)
+                        .replace(/[^a-zA-Z\s]/g, '')
+                        .trim()
+                        .toUpperCase();
+
+                        const fipsKey = nameToFipsMap[normalizedName];
+                        if(!fipsKey){
+                          console.warn("No FIPS found for county name:", row.COUNTYFP10, normalizedName);
+                          return
+                        } 
+                        
+                        countyPsychDataByFIPS[fipsKey] = {
+                            famPsych_num: row.famPsych_num,
+                            famPsych_rate: row.famPsych_rate
+                        };
+                    });
+                    console.log("Loaded psych data for", Object.keys(countyPsychDataByFIPS).length, "counties.");
+                    resolve();
+                }
+            });
+        });
+
+        const physicianNpDataPromise = new Promise(resolve => {
+            Papa.parse('/data/total_physician_np_count_ratio.csv', { // *** ASSUMING THIS IS THE FILE PATH ***
+                download: true,
+                header: true,
+                dynamicTyping: true, 
+                complete: ({ data }) => {
+                    data.forEach(row => {
+                      // Note: COUNTYFP10 in the CSV seems to be the name, let's use nameToFipsMap
+                      const normalizedName = String(row.COUNTYFP10)
+                        .replace(/[^a-zA-Z\s]/g, '')
+                        .trim()
+                        .toUpperCase();
+
+                        const fipsKey = nameToFipsMap[normalizedName];
+
+                        if(!fipsKey){
+                          console.warn("No FIPS found for county name (phys/np):", row.COUNTYFP10, normalizedName);
+                          return
+                        } 
+                        
+                        countyPhysicianNPDataByFIPS[fipsKey] = {
+                            phys_count: row.phys_count,
+                            phys_rate_p_100k: row.phys_rate_p_100k,
+                            '2023_pop': row['2023_pop'],
+                            NP_count: row.NP_count,
+                            NP_rate_p_100k: row.NP_rate_p_100k,
+                            NP_to_phy_ratio: row.NP_to_phy_ratio
+                        };
+                    });
+                    console.log("Loaded Physician/NP data for", Object.keys(countyPhysicianNPDataByFIPS).length, "counties.");
+                    resolve();
+                }
+            });
+        });
+      
+        Promise.all([psychDataPromise, physicianNpDataPromise]).then(() => {
+            Papa.parse('/data/final_cleaned_.csv', {
+                download: true,
+                header: true,
+                dynamicTyping: false, 
+                complete: ({ data }) => {
+                    console.log("Papa.parse COMPLETE fired for all data.");
+                    
+                    allProviderData = data; 
+
+                    const uniqueNpTypes = new Set();
+                    const npTypeSelect = document.getElementById('npTypeSelect');
+                    
+                    const providersMatched = initialCountAndTypePopulation(uniqueNpTypes);
+                    
+                    uniqueNpTypes.forEach(type => {
+                        if (type && type !== '') {
+                            const option = document.createElement('option');
+                            option.value = type;
+                            option.textContent = type;
+                            npTypeSelect.appendChild(option);
+                        }
+                    });
+                    
+                    document.getElementById('npTypeSelect').addEventListener('change', runCombinedFilter);
+
+                    console.log("Total rows processed:", data.length);
+                    console.log("FIPS keys counted:", Object.keys(providerCountByFIPS).length);
+                    console.log("Sample FIPS keys generated from CSV:", Object.keys(providerCountByFIPS).slice(0, 5)); 
+                    
+                    updateCountPill(providersMatched);
+                    drawChoropleth(fullGeoJsonData);
+                    const loadingDiv = document.getElementById('loadingMessage');
+                    if (loadingDiv) {
+                        loadingDiv.style.display = 'none';
                     }
-                });
-                
-                document.getElementById('npTypeSelect').addEventListener('change', runCombinedFilter);
-
-                console.log("Total rows processed:", data.length);
-                console.log("FIPS keys counted:", Object.keys(providerCountByFIPS).length);
-                console.log("Sample FIPS keys generated from CSV:", Object.keys(providerCountByFIPS).slice(0, 5)); 
-                
-                updateCountPill(providersMatched);
-                drawChoropleth(fullGeoJsonData);
-                const loadingDiv = document.getElementById('loadingMessage');
-                if (loadingDiv) {
-                    loadingDiv.style.display = 'none';
-            }
-            }
+                }
+            });
         });
     });
 }
+
 
 function initialCountAndTypePopulation(uniqueNpTypes) {
     providerCountByFIPS = {};
@@ -146,10 +218,8 @@ function drawChoropleth(data) {
     
     geoJsonLayer = L.geoJSON(data, {
         style: f => {
-            
             const countyFips = String(f.properties.COUNTYFP10); 
             const fipsKey = '13' + countyFips;
-            
             const count = providerCountByFIPS[fipsKey] || 0; 
             
             return {
@@ -160,12 +230,47 @@ function drawChoropleth(data) {
             };
         },
         onEachFeature: (feature, layer) => {
+            
             const countyFips = String(feature.properties.COUNTYFP10); 
-            const fipsKey = '13' + countyFips;
+            const fipsKey = '13' + padFips(countyFips); 
             const count = providerCountByFIPS[fipsKey] || 0;
             
             const countyName = feature.properties.NAME10; 
-            layer.bindPopup(`<b>${countyName} County</b><br>Providers: ${count}`);
+            const psychData = countyPsychDataByFIPS[fipsKey] || { psych_num: 'N/A', psych_rate: 'N/A' };
+
+            const physNpData = countyPhysicianNPDataByFIPS[fipsKey] || { 
+              phys_count: 'N/A', 
+              phys_rate_p_100k: 'N/A', 
+              '2023_pop': 'N/A', 
+              NP_count: 'N/A', 
+              NP_rate_p_100k: 'N/A', 
+              NP_to_phy_ratio: 'N/A' 
+            };
+
+            const ratioDisplay = typeof physNpData.NP_to_phy_ratio === 'string' && physNpData.NP_to_phy_ratio.toUpperCase() === 'N/A'
+            ? 'N/A'
+            : (typeof physNpData.NP_to_phy_ratio === 'number' ? physNpData.NP_to_phy_ratio.toFixed(2) : physNpData.NP_to_phy_ratio);
+
+            layer.bindPopup(
+                `<b>${countyName} County</b><br>` +
+                `<b>2023-2024 Population:</b> ${physNpData['2023_pop'].toLocaleString()}<br>` +
+
+                `<hr style="margin: 5px 0;">` +
+
+                `<b>Nurse Practitioner Count:</b> ${count}<br>` +
+                `<b>NP Rate per 100k:</b> ${physNpData.NP_rate_p_100k} <br>` +
+
+                `<hr style="margin: 5px 0;">` +
+
+                `<b>All Physician Count:</b> ${physNpData.phys_count}<br>` +
+                `<b>Physician Rate per 100k:</b> ${physNpData.phys_rate_p_100k} <br>` +
+                `<b>NP to Physician Ratio:</b> ${ratioDisplay}<br>` +
+
+                `<hr style="margin: 5px 0;">` +
+
+                `<b>Family Physicians:</b> ${psychData.famPsych_num}<br>` +
+                `<b>Family Physicians Rate per 100k:</b> ${psychData.famPsych_rate}<br>`
+            );
         }
     }).addTo(map);
 
@@ -182,6 +287,10 @@ function runCombinedFilter() {
     
     const selectedFIPS = String(document.getElementById('countySelect').value);
     const selectedNPType = document.getElementById('npTypeSelect').value;
+    const physicianMetric = document.getElementById("physicianSelect").value;
+
+    
+    // --- NO PSYCH FILTER LOGIC HERE ---
     
     let filteredProviders = allProviderData;
     
@@ -194,17 +303,19 @@ function runCombinedFilter() {
     
     providerCountByFIPS = newCountByFIPS;
     
-    const filteredFeatures = selectedFIPS === '__ALL__' 
-        ? fullGeoJsonData.features
-        
-        : fullGeoJsonData.features.filter(f => String(f.properties.COUNTYFP10) === selectedFIPS);
+    
+    let filteredFeatures = fullGeoJsonData.features;
+
+    if (selectedFIPS !== '__ALL__') {
+        filteredFeatures = filteredFeatures.filter(f => String(f.properties.COUNTYFP10) === selectedFIPS);
+    }
 
     const filteredGeoJSON = {
         type: 'FeatureCollection',
         features: filteredFeatures
     };
     
-    drawChoropleth(filteredGeoJSON);
+    drawChoropleth(filteredGeoJSON, '__ALL__');
 
     if (geoJsonLayer && filteredFeatures.length > 0) { 
            
