@@ -257,7 +257,7 @@ function drawChoropleth(data) {
 
                 `<hr style="margin: 5px 0;">` +
 
-                `<b>Nurse Practitioner Count:</b> ${count}<br>` +
+                `<b>Nurse Practitioner Count:</b> ${physNpData.NP_count}<br>` +
                 `<b>NP Rate per 100k:</b> ${physNpData.NP_rate_p_100k} <br>` +
 
                 `<hr style="margin: 5px 0;">` +
